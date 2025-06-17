@@ -58,20 +58,29 @@ fun MultipleSelectChip() {
                 .focusable()
                 .padding(8.dp)
         ) {
-            Column {
-                if (selectedItems.isEmpty()) {
-                    Text("Chip", color = Color.Gray, fontSize = 16.sp)
-                } else {
-                    FlowRow {
-                        selectedItems.forEach { item ->
-                            ChipItem(item) { selectedItems = selectedItems - item }
+            Row(
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp) // để cách icon một chút
+                ) {
+                    if (selectedItems.isEmpty()) {
+                        Text("Chip", color = Color.Gray, fontSize = 16.sp)
+                    } else {
+                        FlowRow {
+                            selectedItems.forEach { item ->
+                                ChipItem(item) { selectedItems = selectedItems - item }
+                            }
                         }
                     }
                 }
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = "Dropdown",
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                    modifier = Modifier
+                        .size(24.dp)
+                        .align(Alignment.CenterVertically)
                 )
             }
         }
