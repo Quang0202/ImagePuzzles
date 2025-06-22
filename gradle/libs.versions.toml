@@ -1,5 +1,6 @@
 [versions]
 agp = "8.9.0"
+constraintlayoutCompose = "1.1.1"
 foundationLayout = "1.8.2"
 kotlin = "2.0.21"
 coreKtx = "1.16.0"
@@ -13,6 +14,7 @@ material = "1.8.2"
 navigationCompose = "2.9.0"
 
 [libraries]
+androidx-constraintlayout-compose = { module = "androidx.constraintlayout:constraintlayout-compose", version.ref = "constraintlayoutCompose" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-foundation-layout = { module = "androidx.compose.foundation:foundation-layout", version.ref = "foundationLayout" }
 androidx-material = { module = "androidx.compose.material:material", version.ref = "material" }

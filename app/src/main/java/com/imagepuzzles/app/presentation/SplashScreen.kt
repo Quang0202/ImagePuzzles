@@ -49,7 +49,7 @@ fun SplashScreen(navController: NavController) {
             progress += 0.1f
             delay(200L)
         }
-       navController.navigate(Screen.Home.route){
+       navController.navigate(Screen.Game.route){
            popUpTo(navController.graph.startDestinationId) {
                inclusive = true
            }

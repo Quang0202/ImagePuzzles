@@ -2,6 +2,7 @@ package com.imagepuzzles.app.presentation
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,7 +29,7 @@ fun PuzzleGameScreen() {
     val context = LocalContext.current
     val bitmap = BitmapFactory.decodeResource(context.resources,R.drawable.splash)
     val puzzleSize = 3 // 3x3 grid
-    val frameSizeDp = 300.dp // Kích thước khung game
+    val frameSizeDp = 600.dp // Kích thước khung game
     val frameSizePx = with(LocalDensity.current) { frameSizeDp.toPx() } // Chuyển dp sang px
     val scale = minOf(frameSizePx / bitmap.width, frameSizePx / bitmap.height) // Tỉ lệ thu phóng
     val scaledBitmap = Bitmap.createScaledBitmap(
@@ -37,20 +38,19 @@ fun PuzzleGameScreen() {
         (bitmap.height * scale).toInt(),
         true
     )
-    val tileSizePx = scaledBitmap.width / puzzleSize // Kích thước mỗi ô (px)
-    val tileSizeDp = with(LocalDensity.current) { (tileSizePx / density).dp } // Chuyển px sang dp
+    val tileSizePx = scaledBitmap.width / puzzleSize
+    val tileSizeDp = with(LocalDensity.current) { (tileSizePx / density).dp }
     val tiles = remember { mutableStateListOf<Bitmap?>() }
     val emptyTileIndex = remember { mutableStateOf(puzzleSize * puzzleSize - 1) }
     var moveCount by remember { mutableStateOf(0) }
     var isGameWon by remember { mutableStateOf(false) }
 
-    // Initialize tiles
     LaunchedEffect(Unit) {
         tiles.clear()
         for (i in 0 until puzzleSize) {
             for (j in 0 until puzzleSize) {
                 if (i == puzzleSize - 1 && j == puzzleSize - 1) {
-                    tiles.add(null) // Empty tile
+                    tiles.add(null)
                 } else {
                     val tileBitmap = Bitmap.createBitmap(scaledBitmap, j * tileSizePx, i * tileSizePx, tileSizePx, tileSizePx)
                     tiles.add(tileBitmap)
@@ -129,7 +129,7 @@ fun PuzzleGameScreen() {
                                     }
                             ) {
                                 if (tile != null) {
-                                    androidx.compose.foundation.Image(
+                                    Image(
                                         bitmap = tile.asImageBitmap(),
                                         contentDescription = null,
                                         contentScale = ContentScale.FillBounds,
