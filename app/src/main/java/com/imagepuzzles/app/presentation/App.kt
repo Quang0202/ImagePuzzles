@@ -22,7 +22,7 @@ fun App() {
             HomeScreen(navController)
         }
         composable(Screen.Game.route) {
-            ExampleConstraintLayout()
+            ExamplePopup()
         }
 
     }

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.imagepuzzles.app.model.TooltipPosition
 import kotlinx.coroutines.delay
 
 private const val TRANSITION_INITIALIZE = 0
@@ -58,7 +59,7 @@ private const val TRANSITION_GONE = 3
  */
 @Composable
 fun Tooltip(
-    anchorEdge: AnchorEdge,
+    tooltipPosition: TooltipPosition,
     modifier: Modifier = Modifier,
     tooltipStyle: TooltipStyle = rememberTooltipStyle(),
     tipPosition: EdgePosition = remember { EdgePosition() },
@@ -67,11 +68,11 @@ fun Tooltip(
     onDismissRequest: (() -> Unit)? = null,
     properties: PopupProperties = remember { PopupProperties() },
     content: @Composable RowScope.() -> Unit,
-) = with(anchorEdge) {
+) = with(tooltipPosition.anchorEdge) {
     Popup(
         popupPositionProvider = TooltipPopupPositionProvider(
             LocalDensity.current,
-            anchorEdge,
+            tooltipPosition.anchorEdge,
             tooltipStyle,
             tipPosition,
             anchorPosition,
@@ -84,7 +85,7 @@ fun Tooltip(
             modifier = modifier,
             tooltipStyle = tooltipStyle,
             tipPosition = tipPosition,
-            anchorEdge = anchorEdge,
+            anchorEdge = tooltipPosition.anchorEdge,
             content = content
         )
     }
@@ -122,19 +123,17 @@ fun Tooltip(
 @ExperimentalAnimationApi
 @Composable
 fun Tooltip(
-    anchorEdge: AnchorEdge,
+    tooltipPosition: TooltipPosition,
     enterTransition: EnterTransition,
     exitTransition: ExitTransition,
     modifier: Modifier = Modifier,
     visible: Boolean = true,
     tooltipStyle: TooltipStyle = rememberTooltipStyle(),
-    tipPosition: EdgePosition = remember { EdgePosition() },
-    anchorPosition: EdgePosition = remember { EdgePosition() },
     margin: Dp = 8.dp,
     onDismissRequest: (() -> Unit)? = null,
     properties: PopupProperties = remember { PopupProperties() },
     content: @Composable RowScope.() -> Unit,
-) = with(anchorEdge) {
+) = with(tooltipPosition.anchorEdge) {
     var transitionState by remember { mutableStateOf(TRANSITION_GONE) }
     LaunchedEffect(visible) {
         if (visible) {
@@ -157,10 +156,10 @@ fun Tooltip(
         Popup(
             popupPositionProvider = TooltipPopupPositionProvider(
                 LocalDensity.current,
-                anchorEdge,
+                tooltipPosition.anchorEdge,
                 tooltipStyle,
-                tipPosition,
-                anchorPosition,
+                tooltipPosition.edgePosition,
+                EdgePosition(0.5f),
                 margin
             ),
             onDismissRequest = onDismissRequest,
@@ -169,8 +168,8 @@ fun Tooltip(
             if (transitionState == TRANSITION_INITIALIZE) {
                 TooltipImpl(
                     tooltipStyle = tooltipStyle,
-                    tipPosition = tipPosition,
-                    anchorEdge = anchorEdge,
+                    tipPosition = tooltipPosition.edgePosition,
+                    anchorEdge = tooltipPosition.anchorEdge,
                     modifier = modifier.alpha(0f),
                     content = content,
                 )
@@ -197,8 +196,8 @@ fun Tooltip(
                 TooltipImpl(
                     modifier = modifier,
                     tooltipStyle = tooltipStyle,
-                    tipPosition = tipPosition,
-                    anchorEdge = anchorEdge,
+                    tipPosition = tooltipPosition.edgePosition,
+                    anchorEdge = tooltipPosition.anchorEdge,
                     content = content
                 )
             }

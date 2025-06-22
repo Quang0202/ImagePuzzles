@@ -57,7 +57,7 @@ class TooltipStyle internal constructor(
 fun rememberTooltipStyle(
     color: Color = MaterialTheme.colors.secondary,
     cornerRadius: Dp = 8.dp,
-    tipWidth: Dp = 24.dp,
+    tipWidth: Dp = 16.dp,
     tipHeight: Dp = 8.dp,
     contentPadding: PaddingValues = PaddingValues(12.dp),
 ): TooltipStyle {
