@@ -1,5 +1,6 @@
 package com.imagepuzzles.app.model
 
+import androidx.compose.ui.unit.dp
 import com.github.skgmn.composetooltip.AnchorEdge
 import com.github.skgmn.composetooltip.EdgePosition
 

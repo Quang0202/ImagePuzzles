@@ -26,7 +26,8 @@ import com.github.skgmn.composetooltip.AnchorEdge
 import com.github.skgmn.composetooltip.EdgePosition
 import com.github.skgmn.composetooltip.Tooltip
 import com.imagepuzzles.app.R
-import com.imagepuzzles.app.model.TooltipPosition
+import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.flow.firstOrNull
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
@@ -36,14 +37,21 @@ fun ExamplePopup(
         modifier = Modifier
             .fillMaxSize()
     ) {
+        var anchorEdge by remember { mutableStateOf<AnchorEdge>(AnchorEdge.Top) }
 
-
-        var tooltipPosition by remember { mutableStateOf(TooltipPosition.Top) }
         var imageOffsetX by remember { mutableStateOf(0.dp) }
         var imageOffsetY by remember { mutableStateOf(0.dp) }
 
+        val tipPosition = remember { EdgePosition() }
+        val anchorPosition = remember { EdgePosition() }
+
         var tooltipVisible by remember { mutableStateOf(false) }
 
+        LaunchedEffect(Unit) {
+            tooltipVisible = true
+        }
+
+        BottomPanel(tipPosition, anchorPosition)
 
         Column(
             modifier = Modifier
@@ -55,8 +63,8 @@ fun ExamplePopup(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .padding(bottom = 8.dp)
-                    .buttonInvisible(tooltipVisible) {
-                        tooltipPosition= TooltipPosition.Top
+                    .buttonInvisible(tooltipVisible && anchorEdge == AnchorEdge.Top) {
+                        anchorEdge = AnchorEdge.Top
                         tooltipVisible = true
                     }
                     .padding(8.dp)
@@ -68,8 +76,8 @@ fun ExamplePopup(
                     text = "⬅",
                     modifier = Modifier
                         .padding(end = 8.dp)
-                        .buttonInvisible(tooltipVisible) {
-                            tooltipPosition= TooltipPosition.TopStart
+                        .buttonInvisible(tooltipVisible && anchorEdge == AnchorEdge.Start) {
+                            anchorEdge = AnchorEdge.Start
                             tooltipVisible = true
                         }
                         .padding(8.dp)
@@ -94,10 +102,12 @@ fun ExamplePopup(
                         contentDescription = "dummy",
                     )
                     Tooltip(
-                        tooltipPosition = tooltipPosition,
+                        anchorEdge = anchorEdge,
                         visible = tooltipVisible,
                         enterTransition = fadeIn(),
                         exitTransition = fadeOut(),
+                        tipPosition = tipPosition,
+                        anchorPosition = anchorPosition,
                         modifier = Modifier.clickable(
                             remember { MutableInteractionSource() },
                             null
@@ -109,7 +119,7 @@ fun ExamplePopup(
                         }
                     ) {
                         Text(
-                            text = "Drag icon to move it.\nDrag icon to move it.\nDrag icon to move it.",
+                            text = "Drag icon to move it.\nTouch tooltip to dismiss it.\nTouch arrows to move anchor edge.",
                             modifier = Modifier.widthIn(max = 200.dp)
                         )
                     }
@@ -118,13 +128,24 @@ fun ExamplePopup(
                     text = "➡",
                     modifier = Modifier
                         .padding(start = 8.dp)
-                        .buttonInvisible(tooltipVisible ) {
-                            tooltipPosition= TooltipPosition.TopEnd
+                        .buttonInvisible(tooltipVisible && anchorEdge == AnchorEdge.End) {
+                            anchorEdge = AnchorEdge.End
                             tooltipVisible = true
                         }
                         .padding(8.dp)
                 )
             }
+            Text(
+                text = "⬇",
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 8.dp)
+                    .buttonInvisible(tooltipVisible && anchorEdge == AnchorEdge.Bottom) {
+                        anchorEdge = AnchorEdge.Bottom
+                        tooltipVisible = true
+                    }
+                    .padding(8.dp)
+            )
         }
     }
 }

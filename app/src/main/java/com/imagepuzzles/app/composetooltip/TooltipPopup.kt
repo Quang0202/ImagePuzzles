@@ -1,5 +1,6 @@
 package com.github.skgmn.composetooltip
 
+import android.content.res.Resources
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -25,8 +26,8 @@ import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
-import com.imagepuzzles.app.model.TooltipPosition
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 private const val TRANSITION_INITIALIZE = 0
 private const val TRANSITION_ENTER = 1
@@ -57,40 +58,6 @@ private const val TRANSITION_GONE = 3
  * @param properties [PopupProperties] for further customization of this tooltip's behavior.
  * @param content Content inside balloon. Typically [Text].
  */
-@Composable
-fun Tooltip(
-    tooltipPosition: TooltipPosition,
-    modifier: Modifier = Modifier,
-    tooltipStyle: TooltipStyle = rememberTooltipStyle(),
-    tipPosition: EdgePosition = remember { EdgePosition() },
-    anchorPosition: EdgePosition = remember { EdgePosition() },
-    margin: Dp = 8.dp,
-    onDismissRequest: (() -> Unit)? = null,
-    properties: PopupProperties = remember { PopupProperties() },
-    content: @Composable RowScope.() -> Unit,
-) = with(tooltipPosition.anchorEdge) {
-    Popup(
-        popupPositionProvider = TooltipPopupPositionProvider(
-            LocalDensity.current,
-            tooltipPosition.anchorEdge,
-            tooltipStyle,
-            tipPosition,
-            anchorPosition,
-            margin
-        ),
-        onDismissRequest = onDismissRequest,
-        properties = properties
-    ) {
-        TooltipImpl(
-            modifier = modifier,
-            tooltipStyle = tooltipStyle,
-            tipPosition = tipPosition,
-            anchorEdge = tooltipPosition.anchorEdge,
-            content = content
-        )
-    }
-}
-
 /**
  * Show a tooltip as popup near to an anchor with transition.
  * As [AnimatedVisibility] is experimental, this function is also experimental.
@@ -123,18 +90,24 @@ fun Tooltip(
 @ExperimentalAnimationApi
 @Composable
 fun Tooltip(
-    tooltipPosition: TooltipPosition,
+    anchorEdge: AnchorEdge,
     enterTransition: EnterTransition,
     exitTransition: ExitTransition,
     modifier: Modifier = Modifier,
     visible: Boolean = true,
     tooltipStyle: TooltipStyle = rememberTooltipStyle(),
+    tipPosition: EdgePosition = remember { EdgePosition() },
+    anchorPosition: EdgePosition = remember { EdgePosition() },
     margin: Dp = 8.dp,
     onDismissRequest: (() -> Unit)? = null,
     properties: PopupProperties = remember { PopupProperties() },
     content: @Composable RowScope.() -> Unit,
-) = with(tooltipPosition.anchorEdge) {
+) = with(anchorEdge) {
     var transitionState by remember { mutableStateOf(TRANSITION_GONE) }
+
+    var widthScreen = Resources.getSystem().displayMetrics.widthPixels
+    var heightScreen = Resources.getSystem().displayMetrics.heightPixels
+
     LaunchedEffect(visible) {
         if (visible) {
             when (transitionState) {
@@ -156,10 +129,12 @@ fun Tooltip(
         Popup(
             popupPositionProvider = TooltipPopupPositionProvider(
                 LocalDensity.current,
-                tooltipPosition.anchorEdge,
+                anchorEdge,
                 tooltipStyle,
-                tooltipPosition.edgePosition,
-                EdgePosition(0.5f),
+                tipPosition,
+                anchorPosition,
+                widthScreen,
+                heightScreen,
                 margin
             ),
             onDismissRequest = onDismissRequest,
@@ -168,8 +143,8 @@ fun Tooltip(
             if (transitionState == TRANSITION_INITIALIZE) {
                 TooltipImpl(
                     tooltipStyle = tooltipStyle,
-                    tipPosition = tooltipPosition.edgePosition,
-                    anchorEdge = tooltipPosition.anchorEdge,
+                    tipPosition = tipPosition,
+                    anchorEdge = anchorEdge,
                     modifier = modifier.alpha(0f),
                     content = content,
                 )
@@ -196,8 +171,8 @@ fun Tooltip(
                 TooltipImpl(
                     modifier = modifier,
                     tooltipStyle = tooltipStyle,
-                    tipPosition = tooltipPosition.edgePosition,
-                    anchorEdge = tooltipPosition.anchorEdge,
+                    tipPosition = tipPosition,
+                    anchorEdge = anchorEdge,
                     content = content
                 )
             }
@@ -250,7 +225,6 @@ internal fun Tip(anchorEdge: AnchorEdge, tooltipStyle: TooltipStyle) = with(anch
     )
 }
 
-
 @Composable
 internal fun TooltipContentContainer(
     anchorEdge: AnchorEdge,
@@ -276,13 +250,14 @@ internal fun TooltipContentContainer(
     }
 }
 
-
-private class TooltipPopupPositionProvider(
+class TooltipPopupPositionProvider(
     private val density: Density,
-    private val anchorEdge: AnchorEdge,
+    private var anchorEdge: AnchorEdge,
     private val tooltipStyle: TooltipStyle,
-    private val tipPosition: EdgePosition,
+    private var tipPosition: EdgePosition,
     private val anchorPosition: EdgePosition,
+    private val widthScreen: Int,
+    private val heightScreen: Int,
     private val margin: Dp
 ) : PopupPositionProvider {
     override fun calculatePosition(
@@ -290,14 +265,264 @@ private class TooltipPopupPositionProvider(
         windowSize: IntSize,
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize
-    ): IntOffset = anchorEdge.calculatePopupPosition(
-        density,
-        tooltipStyle,
-        tipPosition,
-        anchorPosition,
-        margin,
-        anchorBounds,
-        layoutDirection,
-        popupContentSize
-    )
+    ): IntOffset = with(density) {
+        // Điểm neo (anchor point) trên icon gốc
+        val anchorPointX = if (layoutDirection == LayoutDirection.Ltr) {
+            anchorBounds.left + anchorBounds.width * anchorPosition.percent + anchorPosition.offset.toPx()
+        } else {
+            anchorBounds.right - anchorBounds.width * anchorPosition.percent - anchorPosition.offset.toPx()
+        }
+        val anchorPointY = anchorBounds.top + anchorBounds.height * anchorPosition.percent + anchorPosition.offset.toPx()
+
+        // Kích thước mũi nhọn
+        val tipWidth = max(tooltipStyle.tipWidth, tooltipStyle.tipHeight).toPx()
+        val tipHeight = max(tooltipStyle.tipWidth, tooltipStyle.tipHeight).toPx()
+
+        // Giới hạn màn hình
+        val minX = 0f
+        val maxX = widthScreen.toFloat() - popupContentSize.width
+        val minY = 0f
+        val maxY = heightScreen.toFloat() - popupContentSize.height
+
+        // Tính toán vị trí mặc định
+        var newX = 0f
+        var newY = 0f
+        var newTipPercent = tipPosition.percent
+        var newAnchorEdge = anchorEdge
+
+        when (anchorEdge) {
+            is AnchorEdge.Top -> {
+                // Thử Top
+                newY = anchorBounds.top - margin.toPx() - popupContentSize.height
+                if (newY < minY) {
+                    // Thử Bottom
+                    newY = anchorBounds.bottom + margin.toPx()
+                    if (newY > maxY) {
+                        // Cả Top và Bottom không đủ, thử Start hoặc End
+                        newAnchorEdge = selectHorizontalEdge(
+                            anchorBounds,
+                            popupContentSize,
+                            layoutDirection,
+                            margin,
+                            widthScreen
+                        )
+                        if (newAnchorEdge is AnchorEdge.Start) {
+                            newX = if (layoutDirection == LayoutDirection.Ltr) {
+                                anchorBounds.left - margin.toPx() - popupContentSize.width
+                            } else {
+                                anchorBounds.right + margin.toPx()
+                            }
+                            newY = anchorPointY - tipHeight / 2 - (popupContentSize.height - tipHeight) * tipPosition.percent
+                            newY = newY.coerceIn(minY, maxY)
+                            if (newX < minX) {
+                                newX = minX
+                                val tipY = anchorPointY - newY - tipHeight / 2
+                                newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                            } else if (newX > maxX) {
+                                newX = maxX
+                                val tipY = anchorPointY - newY - tipHeight / 2
+                                newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                            }
+                        } else if (newAnchorEdge is AnchorEdge.End) {
+                            newX = if (layoutDirection == LayoutDirection.Ltr) {
+                                anchorBounds.right + margin.toPx()
+                            } else {
+                                anchorBounds.left - margin.toPx() - popupContentSize.width
+                            }
+                            newY = anchorPointY - tipHeight / 2 - (popupContentSize.height - tipHeight) * tipPosition.percent
+                            newY = newY.coerceIn(minY, maxY)
+                            if (newX < minX) {
+                                newX = minX
+                                val tipY = anchorPointY - newY - tipHeight / 2
+                                newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                            } else if (newX > maxX) {
+                                newX = maxX
+                                val tipY = anchorPointY - newY - tipHeight / 2
+                                newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                            }
+                        }
+                    } else {
+                        // Bottom khả dụng
+                        newAnchorEdge = AnchorEdge.Bottom
+                        val tipY = anchorPointY - newY - tipHeight / 2
+                        newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                    }
+                } else {
+                    // Top khả dụng
+                    val tipY = anchorPointY - newY - tipHeight / 2
+                    newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                }
+                // Tính toán X và điều chỉnh nếu tràn ra ngoài
+                newX = (anchorEdge as AnchorEdge.HorizontalAnchorEdge).calculatePopupPositionX(
+                    this, layoutDirection, anchorBounds, anchorPosition, tooltipStyle, tipPosition, popupContentSize
+                )
+                if (newX < minX) {
+                    newX = minX
+                    // Cập nhật tipPosition để mũi nhọn chỉ vào anchorPointX
+                    val tipX = anchorPointX - newX - tipWidth / 2
+                    newTipPercent = if (layoutDirection == LayoutDirection.Ltr) {
+                        (tipX / (popupContentSize.width - tipWidth)).coerceIn(0f, 1f)
+                    } else {
+                        (1f - (tipX / (popupContentSize.width - tipWidth))).coerceIn(0f, 1f)
+                    }
+                } else if (newX > maxX) {
+                    newX = maxX
+                    val tipX = anchorPointX - newX - tipWidth / 2
+                    newTipPercent = if (layoutDirection == LayoutDirection.Ltr) {
+                        (tipX / (popupContentSize.width - tipWidth)).coerceIn(0f, 1f)
+                    } else {
+                        (1f - (tipX / (popupContentSize.width - tipWidth))).coerceIn(0f, 1f)
+                    }
+                }
+            }
+            is AnchorEdge.Bottom -> {
+                // Thử Bottom
+                newY = anchorBounds.bottom + margin.toPx()
+                if (newY > maxY) {
+                    // Thử Top
+                    newY = anchorBounds.top - margin.toPx() - popupContentSize.height
+                    if (newY < minY) {
+                        // Cả Bottom và Top không đủ, thử Start hoặc End
+                        newAnchorEdge = selectHorizontalEdge(
+                            anchorBounds,
+                            popupContentSize,
+                            layoutDirection,
+                            margin,
+                            widthScreen
+                        )
+                        if (newAnchorEdge is AnchorEdge.Start) {
+                            newX = if (layoutDirection == LayoutDirection.Ltr) {
+                                anchorBounds.left - margin.toPx() - popupContentSize.width
+                            } else {
+                                anchorBounds.right + margin.toPx()
+                            }
+                            newY = anchorPointY - tipHeight / 2 - (popupContentSize.height - tipHeight) * tipPosition.percent
+                            newY = newY.coerceIn(minY, maxY)
+                            if (newX < minX) {
+                                newX = minX
+                                val tipY = anchorPointY - newY - tipHeight / 2
+                                newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                            } else if (newX > maxX) {
+                                newX = maxX
+                                val tipY = anchorPointY - newY - tipHeight / 2
+                                newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                            }
+                        } else if (newAnchorEdge is AnchorEdge.End) {
+                            newX = if (layoutDirection == LayoutDirection.Ltr) {
+                                anchorBounds.right + margin.toPx()
+                            } else {
+                                anchorBounds.left - margin.toPx() - popupContentSize.width
+                            }
+                            newY = anchorPointY - tipHeight / 2 - (popupContentSize.height - tipHeight) * tipPosition.percent
+                            newY = newY.coerceIn(minY, maxY)
+                            if (newX < minX) {
+                                newX = minX
+                                val tipY = anchorPointY - newY - tipHeight / 2
+                                newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                            } else if (newX > maxX) {
+                                newX = maxX
+                                val tipY = anchorPointY - newY - tipHeight / 2
+                                newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                            }
+                        }
+                    } else {
+                        // Top khả dụng
+                        newAnchorEdge = AnchorEdge.Top
+                        val tipY = anchorPointY - newY - tipHeight / 2
+                        newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                    }
+                } else {
+                    // Bottom khả dụng
+                    val tipY = anchorPointY - newY - tipHeight / 2
+                    newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                }
+                // Tính toán X và điều chỉnh nếu tràn ra ngoài
+                newX = (anchorEdge as AnchorEdge.HorizontalAnchorEdge).calculatePopupPositionX(
+                    this, layoutDirection, anchorBounds, anchorPosition, tooltipStyle, tipPosition, popupContentSize
+                )
+                if (newX < minX) {
+                    newX = minX
+                    // Cập nhật tipPosition để mũi nhọn chỉ vào anchorPointX
+                    val tipX = anchorPointX - newX - tipWidth / 2
+                    newTipPercent = if (layoutDirection == LayoutDirection.Ltr) {
+                        (tipX / (popupContentSize.width - tipWidth)).coerceIn(0f, 1f)
+                    } else {
+                        (1f - (tipX / (popupContentSize.width - tipWidth))).coerceIn(0f, 1f)
+                    }
+                } else if (newX > maxX) {
+                    newX = maxX
+                    val tipX = anchorPointX - newX - tipWidth / 2
+                    newTipPercent = if (layoutDirection == LayoutDirection.Ltr) {
+                        (tipX / (popupContentSize.width - tipWidth)).coerceIn(0f, 1f)
+                    } else {
+                        (1f - (tipX / (popupContentSize.width - tipWidth))).coerceIn(0f, 1f)
+                    }
+                }
+            }
+            is AnchorEdge.Start, is AnchorEdge.End -> {
+                // Xử lý Start và End như trước
+                val intOffset = anchorEdge.calculatePopupPosition(
+                    this, tooltipStyle, tipPosition, anchorPosition, margin, anchorBounds, layoutDirection, popupContentSize
+                )
+                newX = intOffset.x.toFloat()
+                newY = intOffset.y.toFloat()
+                if (newAnchorEdge is AnchorEdge.Start) {
+                    if (layoutDirection == LayoutDirection.Ltr && newX < minX) {
+                        newX = minX
+                        val tipY = anchorPointY - newY - tipHeight / 2
+                        newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                    } else if (layoutDirection == LayoutDirection.Rtl && newX > maxX) {
+                        newX = maxX
+                        val tipY = anchorPointY - newY - tipHeight / 2
+                        newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                    }
+                } else if (newAnchorEdge is AnchorEdge.End) {
+                    if (layoutDirection == LayoutDirection.Ltr && newX > maxX) {
+                        newX = maxX
+                        val tipY = anchorPointY - newY - tipHeight / 2
+                        newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                    } else if (layoutDirection == LayoutDirection.Rtl && newX < minX) {
+                        newX = minX
+                        val tipY = anchorPointY - newY - tipHeight / 2
+                        newTipPercent = (tipY / (popupContentSize.height - tipHeight)).coerceIn(0f, 1f)
+                    }
+                }
+                newY = newY.coerceIn(minY, maxY)
+            }
+        }
+
+        // Cập nhật anchorEdge và tipPosition
+        anchorEdge = newAnchorEdge
+        tipPosition = EdgePosition(percent = newTipPercent, offset = tipPosition.offset)
+
+        return IntOffset(newX.roundToInt(), newY.roundToInt())
+    }
+
+    private fun selectHorizontalEdge(
+        anchorBounds: IntRect,
+        popupContentSize: IntSize,
+        layoutDirection: LayoutDirection,
+        margin: Dp,
+        widthScreen: Int
+    ): AnchorEdge = with(density) {
+        val spaceLeft = if (layoutDirection == LayoutDirection.Ltr) {
+            anchorBounds.left - margin.toPx()
+        } else {
+            widthScreen - anchorBounds.right - margin.toPx()
+        }
+        val spaceRight = if (layoutDirection == LayoutDirection.Ltr) {
+            widthScreen - anchorBounds.right - margin.toPx()
+        } else {
+            anchorBounds.left - margin.toPx()
+        }
+
+        return if (spaceLeft >= popupContentSize.width && spaceLeft >= spaceRight) {
+            AnchorEdge.Start
+        } else if (spaceRight >= popupContentSize.width) {
+            AnchorEdge.End
+        } else {
+            // Chọn hướng có nhiều không gian hơn
+            if (spaceLeft > spaceRight) AnchorEdge.Start else AnchorEdge.End
+        }
+    }
 }

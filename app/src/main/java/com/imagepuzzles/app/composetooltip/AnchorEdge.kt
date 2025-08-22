@@ -1,9 +1,11 @@
 package com.github.skgmn.composetooltip
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.unit.*
 import androidx.constraintlayout.compose.ConstrainScope
@@ -113,7 +115,7 @@ abstract class AnchorEdge {
             return widthIn(min = cornerRadius * 2 + max(tipWidth, tipHeight))
         }
 
-        protected fun calculatePopupPositionX(
+         fun calculatePopupPositionX(
             density: Density,
             layoutDirection: LayoutDirection,
             anchorBounds: IntRect,
@@ -259,7 +261,7 @@ abstract class AnchorEdge {
             content: @Composable () -> Unit
         ) {
             val tipPositionOffset = tipPosition.offset
-            ConstraintLayout(modifier = modifier) {
+            ConstraintLayout(modifier = modifier.background(Color.Red)) {
                 val (contentContainer, tipContainer) = createRefs()
                 Box(
                     modifier = Modifier
