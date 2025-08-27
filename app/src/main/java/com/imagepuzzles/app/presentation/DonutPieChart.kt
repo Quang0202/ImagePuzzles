@@ -1,5 +1,6 @@
 package com.imagepuzzles.app.presentation
 
+import android.graphics.CornerPathEffect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PaintingStyle.Companion.Stroke
@@ -35,260 +37,280 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.unit.dp
+import kotlin.math.PI
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.DrawStyle
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import kotlin.math.*
+import kotlin.math.atan2
+import kotlin.math.*
+
+// ---------- Model ----------
+data class PieSlice(val value: Float, val color: Color, val label: String = "")
+
+// ---------- Public API ----------
 @Composable
-fun RoundedPieChart(
-    data: List<PieChartData>,
+fun DonutPieRoundedOverlap(
+    slices: List<PieSlice>,
     modifier: Modifier = Modifier,
-    centerText: String = "",
-    centerSubText: String = "",
-    strokeWidth: Dp = 60.dp,
-    gapAngle: Float = 8f,
-    cornerRadius: Dp = 8.dp
+    holeRatio: Float = 0.62f,     // 0f..1f
+    roundRadius: Dp = 12.dp,      // bán kính bo cho 4 góc (lồi)
+    // độ dày đường phân cách (vẽ sau cùng, luôn nhìn thấy)
+    separatorWidth: Dp = 4.dp,
+    // lượng chồng lên nhau ở mỗi đầu miếng, đo dọc theo cung tại bán kính giữa
+    overlapWidth: Dp = 20.dp,
+    startAngle: Float = -90f,
+    separatorColor: Color = Color.White
 ) {
-    Box(
-        modifier = modifier.aspectRatio(1f),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            val canvasWidth = size.width
-            val canvasHeight = size.height
-            val radius = minOf(canvasWidth, canvasHeight) / 2f
-            val strokeWidthPx = strokeWidth.toPx()
-            val cornerRadiusPx = cornerRadius.toPx()
-            val center = Offset(canvasWidth / 2f, canvasHeight / 2f)
-            val outerRadius = radius - 20.dp.toPx() // Add some padding
-            val innerRadius = outerRadius - strokeWidthPx
+    if (slices.isEmpty()) return
+    val total = slices.sumOf { it.value.toDouble() }.toFloat()
+    if (total <= 0f) return
 
-            // Calculate total value
-            val totalValue = data.sumOf { it.value.toDouble() }.toFloat()
-            if (totalValue <= 0f) return@Canvas
+    Canvas(modifier = modifier) {
+        val minSide = size.minDimension
+        if (minSide <= 0f) return@Canvas
 
-            var currentAngle = -90f // Start from top
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val outerR = minSide / 2f
+        val innerR = (outerR * holeRatio).coerceIn(0f, outerR - 1f)
+        val thickness = (outerR - innerR).coerceAtLeast(1f)
+        val midR = innerR + thickness / 2f
 
-            data.forEach { pieData ->
-                val sweepAngle = (pieData.value / totalValue) * (360f - (data.size * gapAngle))
+        // đổi px -> độ ở bán kính giữa
+        val sepPx = separatorWidth.toPx()
+        val sepDeg = (sepPx / midR) * (180f / Math.PI.toFloat())
+        val dashDeg = sepDeg * 1.15f // quét hơi dài hơn chút để “ăn” trọn mép
 
-                if (sweepAngle > 0f) {
-                    // Create path for rounded segment
-                    val path = createRoundedPieSegment(
-                        center = center,
-                        innerRadius = innerRadius,
-                        outerRadius = outerRadius,
-                        startAngle = currentAngle,
-                        sweepAngle = sweepAngle,
-                        cornerRadius = cornerRadiusPx
-                    )
+        val overlapPx = overlapWidth.toPx()
+        val overlapDeg = (overlapPx / midR) * (180f / Math.PI.toFloat())
 
-                    // Draw the segment
-                    drawPath(
-                        path = path,
-                        color = pieData.color
-                    )
-                }
+        // kẹp roundRadius
+        val rCornerMax = thickness / 2f - 0.5f
+        val rCornerBase = roundRadius.toPx().coerceIn(0f, rCornerMax)
 
-                currentAngle += sweepAngle + gapAngle
-            }
+        // Tính sẵn các ranh giới (góc cộng dồn) để vẽ separator sau cùng
+        val boundaries = mutableListOf<Float>()
+        var aCursor = startAngle
+        slices.forEach { s ->
+            val sweep = (s.value / total) * 360f
+            boundaries += aCursor + sweep       // biên phải của miếng
+            aCursor += sweep
         }
 
-        // Center content
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        // 1) Vẽ các miếng (mỗi miếng nới ra 2 đầu theo overlapDeg)
+        aCursor = startAngle
+        slices.forEach { s ->
+            val sweep = (s.value / total) * 360f
+            if (sweep <= 0f) { aCursor += sweep; return@forEach }
 
+            // Nới 2 đầu: start lùi 1/2 overlap, sweep tăng đủ overlap
+            val segStart = aCursor - overlapDeg / 2f
+            val segSweep = max(0.4f, sweep + overlapDeg)
+
+            // Kẹp bán kính bo theo sweep hiện tại
+            var r = rCornerBase
+            val phiOut = if (r > 0f) Math.toDegrees(atan2(r.toDouble(), (outerR - r).toDouble())).toFloat() else 0f
+            val phiIn  = if (r > 0f) Math.toDegrees(atan2(r.toDouble(), (innerR + r).toDouble())).toFloat() else 0f
+            val minNeeded = 2 * phiOut + 2 * phiIn
+            if (segSweep <= minNeeded + 0.5f && minNeeded > 0f) {
+                r *= ((segSweep * 0.9f) / minNeeded).toFloat()
+            }
+
+            val path = buildRoundedRingSegmentPrecise(
+                center = center,
+                innerR = innerR,
+                outerR = outerR,
+                startDeg = segStart,
+                sweepDeg = segSweep,
+                cornerR = r
+            )
+            drawPath(path = path, color = s.color, style = Fill)
+            drawPath(path = path, color = Color.White, style = Stroke(width = 5f))
+            aCursor += sweep
         }
     }
 }
 
-private fun createRoundedPieSegment(
+// ---------- Hình học chuẩn 4 góc lồi (dùng lại bản đúng) ----------
+private fun buildRoundedRingSegmentPrecise(
     center: Offset,
-    innerRadius: Float,
-    outerRadius: Float,
-    startAngle: Float,
-    sweepAngle: Float,
-    cornerRadius: Float
+    innerR: Float,
+    outerR: Float,
+    startDeg: Float,
+    sweepDeg: Float,
+    cornerR: Float
 ): Path {
-    val path = Path()
+    if (cornerR <= 0f) return buildRingSegmentPath(center, innerR, outerR, startDeg, sweepDeg)
 
-    // Convert angles to radians
-    val startRad = Math.toRadians(startAngle.toDouble()).toFloat()
-    val endRad = Math.toRadians((startAngle + sweepAngle).toDouble()).toFloat()
+    val a0 = startDeg
+    val a1 = startDeg + sweepDeg
 
-    // Calculate corner points
-    val innerStart = Offset(
-        center.x + innerRadius * cos(startRad),
-        center.y + innerRadius * sin(startRad)
-    )
-    val innerEnd = Offset(
-        center.x + innerRadius * cos(endRad),
-        center.y + innerRadius * sin(endRad)
-    )
-    val outerStart = Offset(
-        center.x + outerRadius * cos(startRad),
-        center.y + outerRadius * sin(startRad)
-    )
-    val outerEnd = Offset(
-        center.x + outerRadius * cos(endRad),
-        center.y + outerRadius * sin(endRad)
-    )
+    fun u(angle: Float) = Offset(cosd(angle), sind(angle))
+    fun vPerpCCW(angle: Float) = Offset(-sind(angle), cosd(angle))
 
-    if (cornerRadius <= 0f) {
-        // No rounding - simple path
-        path.moveTo(innerStart.x, innerStart.y)
-        path.arcTo(
-            rect = Rect(center, innerRadius),
-            startAngleDegrees = startAngle,
-            sweepAngleDegrees = sweepAngle,
-            forceMoveTo = false
-        )
-        path.lineTo(outerEnd.x, outerEnd.y)
-        path.arcTo(
-            rect = Rect(center, outerRadius),
-            startAngleDegrees = startAngle + sweepAngle,
-            sweepAngleDegrees = -sweepAngle,
-            forceMoveTo = false
-        )
-        path.close()
-    } else {
-        // Create rounded corners
-        val adjustedCornerRadius = minOf(cornerRadius, (outerRadius - innerRadius) / 2f)
-
-        // Start at inner radius, offset by corner radius
-        val innerStartOffset = getOffsetPoint(innerStart, outerStart, adjustedCornerRadius)
-        path.moveTo(innerStartOffset.x, innerStartOffset.y)
-
-        // Inner arc
-        val innerArcStartAngle = startAngle + Math.toDegrees(
-            adjustedCornerRadius / innerRadius.toDouble()
-        ).toFloat()
-        val innerArcSweepAngle = sweepAngle - 2f * Math.toDegrees(
-            adjustedCornerRadius / innerRadius.toDouble()
-        ).toFloat()
-
-        if (innerArcSweepAngle > 0f) {
-            path.arcTo(
-                rect = Rect(center, innerRadius),
-                startAngleDegrees = innerArcStartAngle,
-                sweepAngleDegrees = innerArcSweepAngle,
-                forceMoveTo = false
-            )
-        }
-
-        // Rounded corner at inner end
-        val innerEndOffset = getOffsetPoint(innerEnd, outerEnd, adjustedCornerRadius)
-        path.quadraticBezierTo(
-            innerEnd.x, innerEnd.y,
-            innerEndOffset.x, innerEndOffset.y
-        )
-
-        // Side line to outer arc
-        val outerEndOffset = getOffsetPoint(outerEnd, innerEnd, adjustedCornerRadius)
-        path.lineTo(outerEndOffset.x, outerEndOffset.y)
-
-        // Rounded corner at outer end
-        path.quadraticBezierTo(
-            outerEnd.x, outerEnd.y,
-            outerEnd.x + adjustedCornerRadius * cos(endRad + Math.PI.toFloat() / 2f),
-            outerEnd.y + adjustedCornerRadius * sin(endRad + Math.PI.toFloat() / 2f)
-        )
-
-        // Outer arc (reverse)
-        val outerArcStartAngle = startAngle + sweepAngle - Math.toDegrees(
-            adjustedCornerRadius / outerRadius.toDouble()
-        ).toFloat()
-        val outerArcSweepAngle = -(sweepAngle - 2f * Math.toDegrees(
-            adjustedCornerRadius / outerRadius.toDouble()
-        ).toFloat())
-
-        if (outerArcSweepAngle < 0f) {
-            path.arcTo(
-                rect = Rect(center, outerRadius),
-                startAngleDegrees = outerArcStartAngle,
-                sweepAngleDegrees = outerArcSweepAngle,
-                forceMoveTo = false
-            )
-        }
-
-        // Rounded corner at outer start
-        val outerStartOffset = getOffsetPoint(outerStart, innerStart, adjustedCornerRadius)
-        path.quadraticBezierTo(
-            outerStart.x, outerStart.y,
-            outerStartOffset.x, outerStartOffset.y
-        )
-
-        path.close()
+    fun outerCornerCenter(angle: Float, signInside: Float): Offset {
+        val uu = u(angle)
+        val vv = vPerpCCW(angle)
+        val t = sqrt(max(0.0, (outerR * outerR - 2.0 * outerR * cornerR).toDouble())).toFloat()
+        return center + uu * t + vv * (signInside * cornerR)
+    }
+    fun innerCornerCenter(angle: Float, signInside: Float): Offset {
+        val uu = u(angle)
+        val vv = vPerpCCW(angle)
+        val t = sqrt(((innerR * innerR) + (2.0 * innerR * cornerR)).toDouble()).toFloat()
+        return center + uu * t + vv * (signInside * cornerR)
     }
 
+    val Cos = outerCornerCenter(a0, +1f)
+    val Coe = outerCornerCenter(a1, -1f)
+    val Cis = innerCornerCenter(a0, +1f)
+    val Cie = innerCornerCenter(a1, -1f)
+
+    fun angO(p: Offset) = Math.toDegrees(atan2((p.y - center.y).toDouble(), (p.x - center.x).toDouble())).toFloat()
+    val angOS = angO(Cos)
+    val angOE = angO(Coe)
+    val angIS = angO(Cis)
+    val angIE = angO(Cie)
+
+    val OS = polar(center, outerR, angOS)
+    val OE = polar(center, outerR, angOE)
+    val IS = polar(center, innerR, angIS)
+    val IE = polar(center, innerR, angIE)
+
+    fun lineContactAt(C: Offset, angle: Float, signInside: Float): Offset {
+        val n = vPerpCCW(angle) * signInside
+        return C - n * cornerR
+    }
+    val OSE = lineContactAt(Coe, a1, -1f)
+    val IEE = lineContactAt(Cie, a1, -1f)
+    val ISS = lineContactAt(Cis, a0, +1f)
+    val OSS = lineContactAt(Cos, a0, +1f)
+
+    fun circleRect(c: Offset, r: Float) = Rect(c.x - r, c.y - r, c.x + r, c.y + r)
+    val rectOuter = circleRect(center, outerR)
+    val rectInner = circleRect(center, innerR)
+    val rectCos = circleRect(Cos, cornerR)
+    val rectCoe = circleRect(Coe, cornerR)
+    val rectCis = circleRect(Cis, cornerR)
+    val rectCie = circleRect(Cie, cornerR)
+
+    fun angleAt(c: Offset, p: Offset) =
+        Math.toDegrees(atan2((p.y - c.y).toDouble(), (p.x - c.x).toDouble())).toFloat()
+
+    fun cwSweep(from: Float, to: Float): Float {
+        var s = to - from
+        while (s < 0f) s += 360f
+        while (s >= 360f) s -= 360f
+        return s
+    }
+    fun ccwSweep(from: Float, to: Float): Float {
+        var s = to - from
+        while (s > 0f) s -= 360f
+        while (s <= -360f) s += 360f
+        return s
+    }
+
+    val path = Path()
+    path.moveTo(OS.x, OS.y)
+    path.arcTo(rectOuter, angOS, cwSweep(angOS, angOE), false)
+
+    val aOE = angleAt(Coe, OE)
+    val aOSE = angleAt(Coe, OSE)
+    path.arcTo(rectCoe, aOE, cwSweep(aOE, aOSE), false)
+
+    path.lineTo(IEE.x, IEE.y)
+
+    val aIEE = angleAt(Cie, IEE)
+    val aIE = angleAt(Cie, IE)
+    path.arcTo(rectCie, aIEE, cwSweep(aIEE, aIE), false)
+
+    path.arcTo(rectInner, angIE, ccwSweep(angIE, angIS), false)
+
+    val aIS = angleAt(Cis, IS)
+    val aISS = angleAt(Cis, ISS)
+    path.arcTo(rectCis, aIS, cwSweep(aIS, aISS), false)
+
+    path.lineTo(OSS.x, OSS.y)
+
+    val aOSS = angleAt(Cos, OSS)
+    val aOS = angleAt(Cos, OS)
+    path.arcTo(rectCos, aOSS, cwSweep(aOSS, aOS), false)
+
+    path.close()
     return path
 }
 
-private fun getOffsetPoint(from: Offset, to: Offset, distance: Float): Offset {
-    val direction = (to - from)
-    val length = direction.getDistance()
-    return if (length > 0) {
-        from + (direction / length) * distance
-    } else {
-        from
-    }
+private fun buildRingSegmentPath(
+    center: Offset,
+    innerR: Float,
+    outerR: Float,
+    startDeg: Float,
+    sweepDeg: Float
+): Path {
+    val path = Path()
+    val rectOuter = Rect(center.x - outerR, center.y - outerR, center.x + outerR, center.y + outerR)
+    val rectInner = Rect(center.x - innerR, center.y - innerR, center.x + innerR, center.y + innerR)
+    val pStart = polar(center, outerR, startDeg)
+    path.moveTo(pStart.x, pStart.y)
+    path.arcTo(rectOuter, startDeg, sweepDeg, false)
+    val pEndInner = polar(center, innerR, startDeg + sweepDeg)
+    path.lineTo(pEndInner.x, pEndInner.y)
+    path.arcTo(rectInner, startDeg + sweepDeg, -sweepDeg, false)
+    path.close()
+    return path
 }
 
-data class PieChartData(
-    val value: Float,
-    val color: Color,
-    val label: String = ""
-)
+// ---------- Math helpers ----------
+private fun cosd(d: Float) = cos(Math.toRadians(d.toDouble())).toFloat()
+private fun sind(d: Float) = sin(Math.toRadians(d.toDouble())).toFloat()
+private operator fun Offset.plus(o: Offset) = Offset(x + o.x, y + o.y)
+private operator fun Offset.minus(o: Offset) = Offset(x - o.x, y - o.y)
+private operator fun Offset.times(k: Float) = Offset(x * k, y * k)
 
-@Preview
+private fun polar(center: Offset, radius: Float, angleDeg: Float): Offset {
+    val r = Math.toRadians(angleDeg.toDouble())
+    return Offset(center.x + radius * cos(r).toFloat(), center.y + radius * sin(r).toFloat())
+}
+
+// ---------- Preview ----------
+@Preview(showBackground = true, backgroundColor = 0xFFFFFFFF)
 @Composable
-fun RoundedPieChartPreview() {
-    MaterialTheme {
-        Surface(
+fun DonutPieRoundedOverlapPreview() {
+    val slices = listOf(
+        PieSlice(14f, Color(0xFFB0BEC5)),   // xám nhạt
+        PieSlice(22f, Color(0xFF00C853)),   // xanh đậm
+        PieSlice(18f, Color(0xFF69F0AE)),   // xanh nhạt
+        PieSlice(16f, Color(0xFFFF5252)),   // đỏ
+        PieSlice(30f, Color(0xFFFFCDD2)),   // hồng
+    )
+    Box(Modifier.padding(20.dp).size(300.dp)) {
+        DonutPieRoundedOverlap(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colors.background
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                val sampleData = listOf(
-                    PieChartData(40f, Color(0xFF2E7D32), "Large"),
-                    PieChartData(25f, Color(0xFF66BB6A), "Medium"),
-                    PieChartData(20f, Color(0xFF81C784), "Small"),
-                    PieChartData(15f, Color(0xFFEF5350), "Tiny")
-                )
-
-
-                RoundedPieChart(
-                    data = sampleData,
-                    modifier = Modifier.size(280.dp),
-                    centerText = "$328K",
-                    centerSubText = "Size\nDistribution",
-                    strokeWidth = 50.dp,
-                    gapAngle = 8f,
-                    cornerRadius = 20.dp
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                Text(
-                    text = "Corner Radius: 0dp (Sharp)",
-                    style = MaterialTheme.typography.subtitle1,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                RoundedPieChart(
-                    data = sampleData,
-                    modifier = Modifier.size(280.dp),
-                    centerText = "$328K",
-                    centerSubText = "Size\nDistribution",
-                    strokeWidth = 50.dp,
-                    gapAngle = 8f,
-                    cornerRadius = 0.dp
-                )
-            }
-        }
+            slices = slices,
+            holeRatio = 0.62f,
+            roundRadius = 14.dp,
+            separatorWidth = 4.dp,
+            overlapWidth = 6.dp,   // tăng/giảm độ “đè lên nhau”
+            startAngle = -90f,
+            separatorColor = Color.White
+        )
     }
 }
+
