@@ -1,39 +1,66 @@
-Giai đoạn 1 – Senior Mobile Engineer (2–3 năm tới)
+import androidx.compose.ui.graphics.Color
 
-Những việc cần làm:
+data class Position(val volume: Int, val symbol: String, val exchange: String)
+data class PieData(val value: Float, val label: String, val color: Color)
 
-Chủ động nâng cao kiến thức chuyên sâu về mobile qua dự án thực tế, tài liệu chuyên ngành và khóa học nâng cao (Android/iOS, Clean Architecture, MVI/MVVM).
+fun toPieData(
+    positions: List<Position>,
+    maxSlices: Int = 7,
+    minShare: Float = 0.10f // ngưỡng 10% (dùng tỉ lệ để so sánh)
+): List<PieData> {
+    if (positions.isEmpty()) return emptyList()
 
-Tham gia tích cực vào các buổi review code, học hỏi từ đồng nghiệp và luyện tập khả năng phản biện kỹ thuật để đảm bảo chất lượng dự án.
+    val total = positions.fold(0L) { acc, p -> acc + p.volume.toLong() }
+    if (total <= 0L) return emptyList()
 
-Thực hiện POC (Proof of Concept) cho các giải pháp mới liên quan đến performance, security, scalability để rèn kỹ năng giải quyết vấn đề phức tạp.
+    val palette = listOf(
+        Color(0xFFE57373),
+        Color(0xFF64B5F6),
+        Color(0xFF81C784),
+        Color(0xFFFFB74D),
+        Color(0xFFBA68C8),
+        Color(0xFFFF8A65),
+        Color(0xFF4DB6AC),
+        Color(0xFFA1887F),
+        Color(0xFF90A4AE)
+    )
 
-Đăng ký làm mentor cho intern hoặc thành viên junior, trau dồi kỹ năng hướng dẫn và chia sẻ kiến thức.
+    // Tính tỉ lệ 0..1
+    val shares = positions.map { p ->
+        val share = p.volume.toFloat() / total.toFloat()
+        p.symbol + "." + p.exchange to share
+    }.sortedByDescending { it.second }
 
-Giai đoạn 2 – Tech Lead (3–5 năm tới)
+    val (majors, minors) = shares.partition { it.second >= minShare }
+    val roomForMajors = maxSlices - 1
+    val keptMajors = if (majors.size > roomForMajors) majors.take(roomForMajors) else majors
+    val overflowMajors = if (majors.size > roomForMajors) majors.drop(roomForMajors) else emptyList()
 
-Những việc cần làm:
+    val othersValue = (minors + overflowMajors).sumOf { it.second.toDouble() }.toFloat()
 
-Tích cực rèn luyện kỹ năng giao tiếp, quản lý thời gian, và điều phối công việc trong nhóm nhỏ.
+    val rawResult = buildList<Pair<String, Float>> {
+        addAll(keptMajors)
+        if (othersValue > 0f) add("Others" to othersValue)
+    }.take(maxSlices)
 
-Tìm cơ hội làm "lead nhỏ" (chẳng hạn dẫn dắt một feature hoặc mini project) để thực hành phân công, quản lý tiến độ.
+    // Chuyển sang % và scale sao cho tổng = 100
+    val sum = rawResult.sumOf { it.second.toDouble() }.toFloat()
+    val scale = if (sum == 0f) 100f else 100f / sum
 
-Chủ động trao đổi với Product, Design, Backend, QA để hiểu quy trình phối hợp liên phòng ban, từ đó chuẩn bị vai trò cầu nối.
+    val scaled = rawResult.mapIndexed { index, (label, value) ->
+        PieData(
+            value = value * scale, // giá trị %
+            label = label,
+            color = palette[index % palette.size]
+        )
+    }.toMutableList()
 
-Nghiên cứu và thử nghiệm các công cụ, framework mới, sau đó viết tài liệu và chia sẻ cho team.
+    // Điều chỉnh sai số vào phần tử cuối
+    if (scaled.isNotEmpty()) {
+        val adjustedSum = scaled.dropLast(1).sumOf { it.value.toDouble() }.toFloat()
+        val lastValue = 100f - adjustedSum
+        scaled[scaled.lastIndex] = scaled.last().copy(value = lastValue.coerceAtLeast(0f))
+    }
 
-Tham gia hoặc tổ chức các buổi tech sharing nội bộ để dần xây dựng văn hóa chia sẻ kiến thức trong nhóm.
-
-Giai đoạn 3 – Architect hoặc Engineering Manager (5+ năm tới)
-
-Những việc cần làm:
-
-Mở rộng kiến thức sang kiến trúc hệ thống backend, cloud, CI/CD để có góc nhìn tổng thể.
-
-Đọc và nghiên cứu tài liệu kiến trúc của các công ty lớn (Google, Uber, Netflix…) để học cách thiết kế hệ thống mobile ở quy mô lớn.
-
-Chủ động tham gia xây dựng guideline, coding standard, hoặc đề xuất chiến lược công nghệ cho công ty.
-
-Tích cực trau dồi kỹ năng quản lý con người (leadership, coaching, conflict resolution) thông qua sách, workshop, và thực hành.
-
-Tham gia cộng đồng công nghệ (blog, hội thảo, meet-up) để nâng cao hình ảnh chuyên môn và uy tín trong lĩnh vực mobile.
+    return scaled
+}
