@@ -75,3 +75,17 @@ private fun buildFinal(
         result
     }
 }
+LazyVerticalGrid(
+        columns = GridCells.Fixed(4),                 // 4 item mỗi hàng
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(
+            items = items,
+            key = { it.id }
+        ) { item ->
+            GridCell(item)
+        }
+    }
