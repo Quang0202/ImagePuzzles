@@ -60,4 +60,7 @@ dependencies {
     implementation(libs.androidx.material)
     implementation(libs.androidx.foundation.layout)
     implementation(libs.androidx.constraintlayout.compose)
+    implementation("androidx.compose.ui:ui-text")
+    implementation("com.patrykandpatrick.vico:compose-m3:2.2.0-alpha.1")
+    implementation("com.patrykandpatrick.vico:core:2.2.0-alpha.1")
 }
