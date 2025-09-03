@@ -29,3 +29,25 @@ drawRoundRect(
     size = bubbleSize,
     cornerRadius = CornerRadius(r, r)
 )
+
+```
+drawIntoCanvas { c ->
+    val p = Paint()
+    val fw = p.asFrameworkPaint().apply {
+        isAntiAlias = true
+        color = Color(0x1919213D).toArgb() // #19213D1F ~ alpha 0x19
+        // Xấp xỉ blur 12.3px + "spread" 6px bằng cách tăng size và dùng blur
+        maskFilter = BlurMaskFilter(12.3f, BlurMaskFilter.Blur.NORMAL)
+    }
+    val spread = 6.dp.toPx()
+    c.nativeCanvas.drawRoundRect(
+        bubbleTL.x - spread / 2f,
+        bubbleTL.y + 1f - spread / 2f, // offsetY ~ 1px
+        bubbleTL.x + bubbleSize.width + spread / 2f,
+        bubbleTL.y + 1f + bubbleSize.height + spread / 2f,
+        r + spread / 2f,
+        r + spread / 2f,
+        fw
+    )
+}
+```
