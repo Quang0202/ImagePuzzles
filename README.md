@@ -1,14 +1,20 @@
-drawRoundRect(
-    color = Color.Black.copy(alpha = 0.2f),   // bóng mờ
-    topLeft = bubbleTopLeft + Offset(2.dp.toPx(), 2.dp.toPx()), // lệch 2dp
-    size = bubbleSize,
-    cornerRadius = cr
-)
+val bubbleSize = androidx.compose.ui.geometry.Size(bubbleW, bubbleH)
+val bubbleTopLeft = Offset(bubbleLeft, bubbleTop)
+val cr = 12.dp.toPx()
 
-// ---- Tooltip trắng ----
-drawRoundRect(
-    color = Color.White,
-    topLeft = bubbleTopLeft,
-    size = bubbleSize,
-    cornerRadius = cr
-)
+drawIntoCanvas { canvas ->
+    val paint = AndroidPaint().apply {
+        color = android.graphics.Color.WHITE
+        setShadowLayer(12.3f, 0f, 1f, android.graphics.Color.parseColor("#19213D1F"))
+    }
+
+    canvas.nativeCanvas.drawRoundRect(
+        bubbleTopLeft.x,
+        bubbleTopLeft.y,
+        bubbleTopLeft.x + bubbleSize.width,
+        bubbleTopLeft.y + bubbleSize.height,
+        cr,
+        cr,
+        paint
+    )
+}
