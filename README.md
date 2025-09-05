@@ -307,3 +307,17 @@ private fun sha1(text: String): String {
     return md.digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 }
 ```
+```
+FlowRow(
+        maxItemsInEachRow = 2,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(12.dp)
+    ) {
+        items.forEach { item ->
+            ItemCard(item, onClick = {}) // dùng .weight(1f) nếu muốn cân đều
+        }
+    }
+```
