@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.io.path.Path
@@ -43,7 +44,8 @@ import kotlin.io.path.Path
 fun CompareLineChartDynamic(
     data1: List<Float>,
     data2: List<Float>,
-    timeLabels: List<String> = listOf("13:00", "14:00", "15:00", "16:00", "17:00")
+    timeLabels: List<String>,
+    heightChart: Dp = 224.dp
 ) {
     val density = LocalDensity.current
 
@@ -59,9 +61,9 @@ fun CompareLineChartDynamic(
                     .height(224.dp)
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val spacing = size.width / (data1.size - 1)
                     val height = size.height
-                    val width = size.width
+                    val width = size.width - 30.dp.toPx()
+                    val spacing = width / (data1.size - 1)
 
                     // 📊 Tính yRange động từ data
                     val flatValues = (data1 + data2)
@@ -188,10 +190,11 @@ fun CompareLineChartDynamic(
 fun CompareLineChartPreview() {
     val symbol1Changes = listOf(1.3f, 1.2f, 1.1f, 1.4f, 2.0f, 1.7f, 1.6f) // ví dụ
     val symbol2Changes = listOf(0f, -0.3f, -0.2f, -0.5f, -0.7f, -0.9f, -0.6f)
+    val hours = listOf("13:00", "14:00", "15:00", "16:00", "17:00", "18:00")
 
     MaterialTheme {
         Box(Modifier.fillMaxSize().padding(16.dp).padding(top = 20.dp)) {
-            CompareLineChartDynamic(data1 = symbol1Changes, data2 = symbol2Changes)
+            CompareLineChartDynamic(data1 = symbol1Changes, data2 = symbol2Changes, hours)
         }
     }
 }
