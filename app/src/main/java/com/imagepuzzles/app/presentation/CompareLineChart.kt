@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -39,13 +40,12 @@ import androidx.compose.ui.unit.sp
 import kotlin.io.path.Path
 
 @Composable
-fun CompareLineChartFixedHeight(
+fun CompareLineChartDynamic(
     data1: List<Float>,
     data2: List<Float>,
     timeLabels: List<String> = listOf("13:00", "14:00", "15:00", "16:00", "17:00")
 ) {
-    val maxY = 2f
-    val minY = -2f
+    val density = LocalDensity.current
 
     Column(
         modifier = Modifier
@@ -53,7 +53,6 @@ fun CompareLineChartFixedHeight(
             .padding(horizontal = 16.dp)
     ) {
         Row {
-            // 🎯 Biểu đồ với height cố định 224.dp
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -64,10 +63,21 @@ fun CompareLineChartFixedHeight(
                     val height = size.height
                     val width = size.width
 
-                    // 🧱 Grid ngang nét đứt
-                    val ySteps = listOf(2f, 1f, 0f, -1f, -2f)
-                    ySteps.forEach { step ->
-                        val y = height * (1 - (step - minY) / (maxY - minY))
+                    // 📊 Tính yRange động từ data
+                    val flatValues = (data1 + data2)
+                    val minValue = flatValues.minOrNull() ?: -1f
+                    val maxValue = flatValues.maxOrNull() ?: 1f
+                    var adjustedMinY = minOf(minValue, -1f)
+                    var adjustedMaxY = maxOf(maxValue, 1f)
+                    val yRange = adjustedMaxY - adjustedMinY
+
+                    val steps = 5
+                    repeat(steps) { i ->
+                        val ratio = i / (steps - 1).toFloat()
+                        val y = height * ratio
+                        val value = adjustedMaxY - ratio * yRange
+
+                        // 🔹 Vẽ baseline nét đứt
                         drawLine(
                             color = Color.LightGray,
                             start = Offset(0f, y),
@@ -75,12 +85,23 @@ fun CompareLineChartFixedHeight(
                             strokeWidth = 1.dp.toPx(),
                             pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 6f), 0f)
                         )
+
+                        // 🔹 Vẽ yLabel bằng nativeCanvas
+                        drawContext.canvas.nativeCanvas.drawText(
+                            String.format("%+.2f", value) + "%",
+                            width + 8.dp.toPx(),
+                            y + 10,
+                            android.graphics.Paint().apply {
+                                color = android.graphics.Color.GRAY
+                                textSize = 30f
+                            }
+                        )
                     }
 
-                    // 🌄 Gradient Line 1 → bottom (trong Canvas, không đè timeLabels)
+                    // 🌄 Vẽ gradient từ line1 → bottom
                     val points1 = data1.mapIndexed { index, value ->
                         val x = index * spacing
-                        val y = height * (1 - (value - minY) / (maxY - minY))
+                        val y = height * ((adjustedMaxY - value) / yRange)
                         Offset(x, y)
                     }
                     val path1 = Path().apply {
@@ -97,10 +118,10 @@ fun CompareLineChartFixedHeight(
                         )
                     )
 
-                    // 🌄 Gradient Line 2 → bottom
+                    // 🌄 Vẽ gradient từ line2 → bottom
                     val points2 = data2.mapIndexed { index, value ->
                         val x = index * spacing
-                        val y = height * (1 - (value - minY) / (maxY - minY))
+                        val y = height * ((adjustedMaxY - value) / yRange)
                         Offset(x, y)
                     }
                     val path2 = Path().apply {
@@ -117,7 +138,7 @@ fun CompareLineChartFixedHeight(
                         )
                     )
 
-                    // 📈 Line 1
+                    // 📈 Vẽ line 1
                     drawPath(
                         path = Path().apply {
                             moveTo(points1.first().x, points1.first().y)
@@ -127,7 +148,7 @@ fun CompareLineChartFixedHeight(
                         style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
                     )
 
-                    // 📈 Line 2
+                    // 📈 Vẽ line 2
                     drawPath(
                         path = Path().apply {
                             moveTo(points2.first().x, points2.first().y)
@@ -138,32 +159,15 @@ fun CompareLineChartFixedHeight(
                     )
                 }
             }
-
-            // 🧾 Y Label ngoài cùng bên phải
-            Column(
-                modifier = Modifier
-                    .height(224.dp)
-                    .padding(start = 8.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                listOf("+2.00%", "+1.00%", "0.00%", "-1.00%", "-2.00%").forEach {
-                    Text(
-                        text = it,
-                        fontSize = 12.sp,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Start
-                    )
-                }
-            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ⏰ Time Labels nằm dưới ngoài canvas
+        // ⏰ Time labels (ngoài cùng dưới)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(end = 32.dp), // chừa phần Y Label
+                .padding(end = 32.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             timeLabels.forEach {
@@ -178,15 +182,16 @@ fun CompareLineChartFixedHeight(
     }
 }
 
+
 @Preview(showBackground = true, backgroundColor = 0xFFFFFFFF)
 @Composable
 fun CompareLineChartPreview() {
     val symbol1Changes = listOf(1.3f, 1.2f, 1.1f, 1.4f, 2.0f, 1.7f, 1.6f) // ví dụ
-    val symbol2Changes = listOf(0f, -0.3f, -0.2f, -0.5f, -0.7f, -1.1f, -1.0f)
+    val symbol2Changes = listOf(0f, -0.3f, -0.2f, -0.5f, -0.7f, -0.9f, -0.6f)
 
     MaterialTheme {
         Box(Modifier.fillMaxSize().padding(16.dp).padding(top = 20.dp)) {
-            CompareLineChartFixedHeight(data1 = symbol1Changes, data2 = symbol2Changes)
+            CompareLineChartDynamic(data1 = symbol1Changes, data2 = symbol2Changes)
         }
     }
 }
