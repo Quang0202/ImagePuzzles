@@ -20,34 +20,30 @@ var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     )
 ```
 ```
-var text by remember { mutableStateOf("") }
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
+ var isFocused by remember { mutableStateOf(false) }
 
-    val borderColor = if (isFocused) Color.Blue else Color.Gray
-
-    TextField(
+    BasicTextField(
         value = text,
         onValueChange = { text = it },
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 40.dp)
+            .onFocusChanged { focusState ->
+                isFocused = focusState.isFocused
+            }
             .border(
                 width = 1.dp,
-                color = borderColor,
+                color = if (isFocused) Color.Blue else Color.Gray,
                 shape = RoundedCornerShape(8.dp)
             )
-            .padding(4.dp), // padding để text không dính border
-        textStyle = LocalTextStyle.current.copy(lineHeight = 20.sp),
-        maxLines = Int.MAX_VALUE,
+            .padding(12.dp), // padding custom
+        textStyle = LocalTextStyle.current.copy(
+            fontSize = 16.sp,
+            lineHeight = 20.sp,
+            color = Color.Black
+        ),
         singleLine = false,
-        placeholder = { Text("Nhập nội dung...") },
-        interactionSource = interactionSource,
-        colors = TextFieldDefaults.textFieldColors(
-            containerColor = Color.Transparent, // bỏ nền mặc định
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent
-        )
+        maxLines = Int.MAX_VALUE,
+        cursorBrush = SolidColor(Color.Blue) // màu con trỏ
     )
 ```
