@@ -1,4 +1,5 @@
 ```
+implementation("io.coil-kt:coil-compose:2.5.0")
 var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
 
     BasicText(
