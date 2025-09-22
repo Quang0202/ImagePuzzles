@@ -20,30 +20,78 @@ var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     )
 ```
 ```
- var isFocused by remember { mutableStateOf(false) }
+val context = LocalContext.current
+    val mediaList = remember { mutableStateListOf<Uri>() }
 
-    BasicTextField(
-        value = text,
-        onValueChange = { text = it },
+    // Launcher cho phép chọn nhiều file ảnh/video
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (!uris.isNullOrEmpty()) {
+            mediaList.addAll(uris)
+        }
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 40.dp)
-            .onFocusChanged { focusState ->
-                isFocused = focusState.isFocused
+            .padding(16.dp)
+    ) {
+        Text("Image/Video", color = Color.White)
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            // Nút thêm file
+            item {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
+                        .clickable {
+                            launcher.launch(arrayOf("image/*", "video/*"))
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Upload,
+                        contentDescription = "Add",
+                        tint = Color.White
+                    )
+                }
             }
-            .border(
-                width = 1.dp,
-                color = if (isFocused) Color.Blue else Color.Gray,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(12.dp), // padding custom
-        textStyle = LocalTextStyle.current.copy(
-            fontSize = 16.sp,
-            lineHeight = 20.sp,
-            color = Color.Black
-        ),
-        singleLine = false,
-        maxLines = Int.MAX_VALUE,
-        cursorBrush = SolidColor(Color.Blue) // màu con trỏ
-    )
+
+            // Hiển thị danh sách file đã chọn
+            items(mediaList.size) { index ->
+                val uri = mediaList[index]
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                ) {
+                    AsyncImage( // từ coil-compose
+                        model = uri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize()
+                    )
+
+                    // Icon xóa
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Remove",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .background(Color.Red, CircleShape)
+                            .padding(4.dp)
+                            .clickable {
+                                mediaList.remove(uri)
+                            }
+                    )
+                }
+            }
+        }
+    }
 ```
