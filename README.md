@@ -21,77 +21,75 @@ var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     )
 ```
 ```
-val context = LocalContext.current
-    val mediaList = remember { mutableStateListOf<Uri>() }
+fun String.toTextRequestBody(): RequestBody =
+    RequestBody.create("text/plain".toMediaTypeOrNull(), this)
 
-    // Launcher cho phép chọn nhiều file ảnh/video
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        if (!uris.isNullOrEmpty()) {
-            mediaList.addAll(uris)
+suspend fun ContentResolver.uriToPart(
+    uri: Uri,
+    partName: String,
+    fileName: String? = null
+): MultipartBody.Part {
+    val type = getType(uri) ?: "application/octet-stream"
+    val name = fileName ?: queryDisplayName(this, uri) ?: "file.bin"
+    val body = contentUriRequestBody(this, uri, type)
+    return MultipartBody.Part.createFormData(partName, name, body)
+}
+
+// RequestBody đọc từ content:// Uri (không cần copy ra File)
+fun contentUriRequestBody(
+    resolver: ContentResolver,
+    uri: Uri,
+    mime: String
+): RequestBody = object : RequestBody() {
+    override fun contentType() = mime.toMediaTypeOrNull()
+    override fun writeTo(sink: BufferedSink) {
+        resolver.openInputStream(uri)?.use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var read: Int
+            while (input.read(buffer).also { read = it } != -1) {
+                sink.write(buffer, 0, read)
+            }
         }
     }
+}
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
+// Lấy display name từ Uri
+fun queryDisplayName(resolver: ContentResolver, uri: Uri): String? {
+    val projection = arrayOf(android.provider.OpenableColumns.DISPLAY_NAME)
+    resolver.query(uri, projection, null, null, null)?.use { c ->
+        val idx = c.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME)
+        if (c.moveToFirst()) return c.getString(idx)
+    }
+    return null
+}
+
+
+fun upload(
+        resolver: ContentResolver,
+        userId: String,
+        note: String,
+        avatarUri: Uri?,              // 1 ảnh đại diện
+        attachmentUris: List<Uri>     // nhiều file
     ) {
-        Text("Image/Video", color = Color.White)
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(top = 8.dp)
-        ) {
-            // Nút thêm file
-            item {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .border(1.dp, Color.Gray, RoundedCornerShape(8.dp))
-                        .clickable {
-                            launcher.launch(arrayOf("image/*", "video/*"))
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Upload,
-                        contentDescription = "Add",
-                        tint = Color.White
-                    )
+        viewModelScope.launch {
+            _state.value = UploadUiState.Uploading
+            try {
+                val avatarPart = avatarUri?.let {
+                    resolver.uriToPart(it, partName = "avatar")
                 }
-            }
-
-            // Hiển thị danh sách file đã chọn
-            items(mediaList.size) { index ->
-                val uri = mediaList[index]
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                ) {
-                    AsyncImage( // từ coil-compose
-                        model = uri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.matchParentSize()
-                    )
-
-                    // Icon xóa
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Remove",
-                        tint = Color.White,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .background(Color.Red, CircleShape)
-                            .padding(4.dp)
-                            .clickable {
-                                mediaList.remove(uri)
-                            }
-                    )
+                val attachParts: List<MultipartBody.Part> = attachmentUris.map { uri ->
+                    resolver.uriToPart(uri, partName = "attachments")
                 }
+
+                val resp = ApiProvider.api.uploadProfile(
+                    userId = userId.toTextRequestBody(),
+                    note = note.toTextRequestBody(),
+                    avatar = avatarPart,
+                    attachments = attachParts
+                )
+                _state.value = UploadUiState.Success(resp.message)
+            } catch (e: Exception) {
+                _state.value = UploadUiState.Error(e.message ?: "Upload failed")
             }
         }
     }
