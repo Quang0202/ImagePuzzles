@@ -21,76 +21,24 @@ var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     )
 ```
 ```
-fun String.toTextRequestBody(): RequestBody =
-    RequestBody.create("text/plain".toMediaTypeOrNull(), this)
+settings.javaScriptCanOpenWindowsAutomatically = true
+        settings.setSupportMultipleWindows(true)
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+        WebView.setWebContentsDebuggingEnabled(true)
 
-suspend fun ContentResolver.uriToPart(
-    uri: Uri,
-    partName: String,
-    fileName: String? = null
-): MultipartBody.Part {
-    val type = getType(uri) ?: "application/octet-stream"
-    val name = fileName ?: queryDisplayName(this, uri) ?: "file.bin"
-    val body = contentUriRequestBody(this, uri, type)
-    return MultipartBody.Part.createFormData(partName, name, body)
-}
-
-// RequestBody đọc từ content:// Uri (không cần copy ra File)
-fun contentUriRequestBody(
-    resolver: ContentResolver,
-    uri: Uri,
-    mime: String
-): RequestBody = object : RequestBody() {
-    override fun contentType() = mime.toMediaTypeOrNull()
-    override fun writeTo(sink: BufferedSink) {
-        resolver.openInputStream(uri)?.use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            var read: Int
-            while (input.read(buffer).also { read = it } != -1) {
-                sink.write(buffer, 0, read)
+        webChromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
+                // mở challenge trong cùng WebView
+                val transport = resultMsg?.obj as WebView.WebViewTransport
+                transport.webView = this@apply
+                resultMsg.sendToTarget()
+                return true
+            }
+            override fun onConsoleMessage(cm: ConsoleMessage): Boolean {
+                Log.d("ReCaptcha", "${cm.message()} @${cm.sourceId()}:${cm.lineNumber()}")
+                return true
             }
         }
-    }
-}
-
-// Lấy display name từ Uri
-fun queryDisplayName(resolver: ContentResolver, uri: Uri): String? {
-    val projection = arrayOf(android.provider.OpenableColumns.DISPLAY_NAME)
-    resolver.query(uri, projection, null, null, null)?.use { c ->
-        val idx = c.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME)
-        if (c.moveToFirst()) return c.getString(idx)
-    }
-    return null
-}
-
-
-fun upload(
-        resolver: ContentResolver,
-        userId: String,
-        note: String,
-        avatarUri: Uri?,              // 1 ảnh đại diện
-        attachmentUris: List<Uri>     // nhiều file
-    ) {
-        viewModelScope.launch {
-            _state.value = UploadUiState.Uploading
-            try {
-                val avatarPart = avatarUri?.let {
-                    resolver.uriToPart(it, partName = "avatar")
-                }
-                val attachParts: List<MultipartBody.Part> = attachmentUris.map { uri ->
-                    resolver.uriToPart(uri, partName = "attachments")
-                }
-
-                val resp = ApiProvider.api.uploadProfile(
-                    userId = userId.toTextRequestBody(),
-                    note = note.toTextRequestBody(),
-                    avatar = avatarPart,
-                    attachments = attachParts
-                )
-                _state.value = UploadUiState.Success(resp.message)
-            } catch (e: Exception) {
-                _state.value = UploadUiState.Error(e.message ?: "Upload failed")
-            }
-        }
-    }
 ```
