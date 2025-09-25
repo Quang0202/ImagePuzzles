@@ -21,24 +21,21 @@ var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     )
 ```
 ```
-settings.javaScriptCanOpenWindowsAutomatically = true
-        settings.setSupportMultipleWindows(true)
-        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-        CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-        WebView.setWebContentsDebuggingEnabled(true)
 
-        webChromeClient = object : WebChromeClient() {
-            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
-                // mở challenge trong cùng WebView
-                val transport = resultMsg?.obj as WebView.WebViewTransport
-                transport.webView = this@apply
-                resultMsg.sendToTarget()
-                return true
-            }
-            override fun onConsoleMessage(cm: ConsoleMessage): Boolean {
-                Log.d("ReCaptcha", "${cm.message()} @${cm.sourceId()}:${cm.lineNumber()}")
-                return true
-            }
-        }
+<script src="https://www.google.com/recaptcha/api.js?onload=onloadRecaptcha&render=explicit&hl=en" async defer></script>
+function onloadRecaptcha() {
+    grecaptcha.render('captcha', {
+      sitekey: '__SITE_KEY__',
+      callback: onDataCallback,
+      'expired-callback': onDataExpiredCallback,
+      'error-callback': onDataErrorCallback
+    });
+  }
+settings.javaScriptCanOpenWindowsAutomatically = true
+settings.setSupportMultipleWindows(true)
+// nếu trang có lẫn http/https khi test
+settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+
+CookieManager.getInstance().setAcceptCookie(true)
+CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 ```
