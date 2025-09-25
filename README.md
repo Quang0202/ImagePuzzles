@@ -38,4 +38,37 @@ settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
 
 CookieManager.getInstance().setAcceptCookie(true)
 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String) {
+                    super.onPageFinished(view, url)
+
+                    // Lấy outerHTML của trang cha
+                    fun capture() {
+                        view.evaluateJavascript(
+                            "(function(){return document.documentElement.outerHTML;})()"
+                        ) { raw ->
+                            // Kết quả trả về là chuỗi JSON (bọc quote + escape)
+                            val html = raw
+                                ?.removePrefix("\"")
+                                ?.removeSuffix("\"")
+                                ?.replace("\\u003C", "<")
+                                ?.replace("\\n", "\n")
+                                ?.replace("\\t", "\t")
+                                ?.replace("\\\"", "\"")
+                                ?.replace("\\\\", "\\")
+                                ?: ""
+
+                            onHtmlCaptured(html)
+                        }
+                    }
+
+                    // Nhiều trang render thêm bằng JS → đợi 1 chút rồi chụp
+                    view.postDelayed({ capture() }, 500)
+
+                    // (Tuỳ chọn) lặp lại vài lần nếu chờ 1 selector xuất hiện
+                    // ví dụ chờ badge reCAPTCHA
+                    // retryUntil(".grecaptcha-badge" in DOM) rồi capture
+                }
+            }
 ```
