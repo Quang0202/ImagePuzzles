@@ -21,54 +21,48 @@ var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     )
 ```
 ```
+ implementation "com.google.android.recaptcha:recaptcha:18.8.0"
+ @HiltAndroidApp
+class CustomApplication : Application() {
+  lateinit var recaptchaClient: RecaptchaClient
+  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-<script src="https://www.google.com/recaptcha/api.js?onload=onloadRecaptcha&render=explicit&hl=en" async defer></script>
-function onloadRecaptcha() {
-    grecaptcha.render('captcha', {
-      sitekey: '__SITE_KEY__',
-      callback: onDataCallback,
-      'expired-callback': onDataExpiredCallback,
-      'error-callback': onDataErrorCallback
-    });
+  override fun onCreate() {
+    super.onCreate()
+    scope.launch {
+      try {
+        recaptchaClient = Recaptcha.fetchClient(
+          application = this@CustomApplication,
+          key = BuildConfig.RECAPTCHA_KEY_ID // đưa KEY_ID vào buildConfigField
+        )
+      } catch (e: RecaptchaException) {
+        // TODO: log/telemetry
+      }
+    }
   }
-settings.javaScriptCanOpenWindowsAutomatically = true
-settings.setSupportMultipleWindows(true)
-// nếu trang có lẫn http/https khi test
-settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+}
 
-CookieManager.getInstance().setAcceptCookie(true)
-CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
-webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView, url: String) {
-                    super.onPageFinished(view, url)
+  private val client get() = (app as CustomApplication).recaptchaClient
+  var ui by mutableStateOf<UiState>(UiState.Idle); private set
 
-                    // Lấy outerHTML của trang cha
-                    fun capture() {
-                        view.evaluateJavascript(
-                            "(function(){return document.documentElement.outerHTML;})()"
-                        ) { raw ->
-                            // Kết quả trả về là chuỗi JSON (bọc quote + escape)
-                            val html = raw
-                                ?.removePrefix("\"")
-                                ?.removeSuffix("\"")
-                                ?.replace("\\u003C", "<")
-                                ?.replace("\\n", "\n")
-                                ?.replace("\\t", "\t")
-                                ?.replace("\\\"", "\"")
-                                ?.replace("\\\\", "\\")
-                                ?: ""
+  fun verifyLoginWithRecaptcha(username: String, password: String) {
+    viewModelScope.launch(Dispatchers.IO) {
+      ui = UiState.Loading
+      try {
+        // 1) Lấy token từ reCAPTCHA
+        val tokenResult = client
+          .execute(RecaptchaAction.LOGIN, timeout = 10_000L) // khuyến nghị ~10s
+          .getOrThrow()
 
-                            onHtmlCaptured(html)
-                        }
-                    }
+        // 2) Gọi backend của bạn để "assess" token và tiếp tục login
+        val ok = myApi.loginWithRecaptcha(username, password, tokenResult)
+        ui = if (ok) UiState.Success else UiState.Failed("Invalid credentials")
+      } catch (e: Exception) {
+        ui = UiState.Failed(e.message ?: "reCAPTCHA/Network error")
+      }
+    }
 
-                    // Nhiều trang render thêm bằng JS → đợi 1 chút rồi chụp
-                    view.postDelayed({ capture() }, 500)
 
-                    // (Tuỳ chọn) lặp lại vài lần nếu chờ 1 selector xuất hiện
-                    // ví dụ chờ badge reCAPTCHA
-                    // retryUntil(".grecaptcha-badge" in DOM) rồi capture
-                }
-            }
+
 ```
