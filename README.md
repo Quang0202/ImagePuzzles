@@ -66,3 +66,37 @@ class CustomApplication : Application() {
 
 
 ```
+```
+class ContentUriRequestBody(
+    private val context: Context,
+    private val uri: Uri,
+    private val mime: String?
+) : RequestBody() {
+    override fun contentType() = mime?.toMediaTypeOrNull()
+    override fun writeTo(sink: okio.BufferedSink) {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            sink.writeAll(input.source())
+        }
+    }
+}
+
+private fun getFileName(resolver: ContentResolver, uri: Uri): String {
+    var name = "upload"
+    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+        val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        if (idx >= 0 && c.moveToFirst()) name = c.getString(idx) ?: name
+    }
+    return name
+}
+
+fun Uri.toMultipart(context: Context, partName: String = "files[]"): MultipartBody.Part {
+    val resolver = context.contentResolver
+    val mime = resolver.getType(this) ?: "application/octet-stream"
+    val fileName = getFileName(resolver, this)
+    val body = ContentUriRequestBody(context, this, mime)
+    return MultipartBody.Part.createFormData(partName, fileName, body)
+}
+
+fun String.toTextPlain(): RequestBody =
+    RequestBody.create("text/plain".toMediaTypeOrNull(), this)
+    ```
