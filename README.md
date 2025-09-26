@@ -100,3 +100,64 @@ fun Uri.toMultipart(context: Context, partName: String = "files[]"): MultipartBo
 fun String.toTextPlain(): RequestBody =
     RequestBody.create("text/plain".toMediaTypeOrNull(), this)
     ```
+```
+@Composable
+fun ShrinkTextToWidthMultiLine(
+    text: String,
+    modifier: Modifier = Modifier,
+    maxLines: Int = 2,                          // số dòng cho phép
+    style: TextStyle = LocalTextStyle.current,
+) {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+
+    val baseFontSize = style.fontSize.takeIf { it != TextUnit.Unspecified } ?: 16.sp
+    var fittedFontSize by remember(text, baseFontSize, maxLines) { mutableStateOf(baseFontSize) }
+
+    BoxWithConstraints(modifier = modifier) {
+        val targetWidthPx = with(density) { maxWidth.toPx().toInt() }
+
+        LaunchedEffect(text, targetWidthPx, baseFontSize, maxLines, style) {
+            if (text.isEmpty() || targetWidthPx <= 0) {
+                fittedFontSize = baseFontSize
+                return@LaunchedEffect
+            }
+
+            fun fitsAt(sizeSp: Float): Boolean {
+                val res = measurer.measure(
+                    text = text,
+                    style = style.copy(fontSize = sizeSp.sp),
+                    softWrap = true,
+                    maxLines = maxLines,
+                    overflow = TextOverflow.Clip,
+                    constraints = Constraints(maxWidth = targetWidthPx)
+                )
+                return !res.hasVisualOverflow && !res.didOverflowHeight
+            }
+
+            if (fitsAt(baseFontSize.value)) {
+                fittedFontSize = baseFontSize
+            } else {
+                var lo = 1f
+                var hi = baseFontSize.value
+                var best = lo
+                val epsilon = 0.25f
+                while (hi - lo > epsilon) {
+                    val mid = (lo + hi) / 2f
+                    if (fitsAt(mid)) { best = mid; lo = mid } else hi = mid
+                }
+                fittedFontSize = best.sp
+            }
+        }
+
+        Text(
+            text = text,
+            style = style.copy(fontSize = fittedFontSize),
+            maxLines = maxLines,
+            softWrap = true,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+```
