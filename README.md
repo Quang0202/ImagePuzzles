@@ -1,6 +1,6 @@
 ```
 adb shell am start -W \
+  -n com.your.package/.MainActivity \
   -a android.intent.action.VIEW \
-  -c android.intent.category.BROWSABLE \
-  -d "https://example.equix.com/equix-dev?type=order_detail&order-id=123"
+  -d "https://dynamic-link.equix.app/equix-dev?type=order_detail&order-id=AGO-123"
   ```
