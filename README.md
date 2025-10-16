@@ -30,4 +30,5 @@
     android:viewportWidth="1" android:viewportHeight="1">
     <path android:fillColor="@android:color/transparent" android:pathData="M0,0h1v1h-1z"/>
 </vector>
-  ```
+```
+<img width="761" height="1011" alt="multi_select_photo" src="https://github.com/user-attachments/assets/3ad0878c-6c8b-4cac-b40d-76df727244c2" />
