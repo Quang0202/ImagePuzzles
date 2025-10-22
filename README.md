@@ -32,3 +32,54 @@
 </vector>
 ```
 <img width="761" height="1011" alt="multi_select_photo" src="https://github.com/user-attachments/assets/3ad0878c-6c8b-4cac-b40d-76df727244c2" />
+
+
+@Composable
+fun EqualHeightHorizontalPager(
+    pageCount: Int,
+    modifier: Modifier = Modifier,
+    content: @Composable (Int) -> Unit
+) {
+    var maxHeight by remember { mutableStateOf(0) }
+
+    // Đo tất cả các trang một lần để tìm maxHeight
+    val measurables = remember {
+        (0 until pageCount).map { index -> index }
+    }
+
+    BoxWithConstraints(modifier = modifier) {
+        val constraints = this.constraints
+
+        LaunchedEffect(pageCount, constraints) {
+            // Không thể đo trước khi layout, nên chỉ cần update lại sau khi các page render
+        }
+
+        // Đo từng page để tìm ra chiều cao lớn nhất
+        measurables.forEach { index ->
+            SubcomposeLayout { constraints ->
+                val measurable = subcompose(index) { content(index) }.first()
+                val placeable = measurable.measure(constraints)
+                if (placeable.height > maxHeight) {
+                    maxHeight = placeable.height
+                }
+                layout(0, 0) {}
+            }
+        }
+
+        // Pager thật sự
+        if (maxHeight > 0) {
+            HorizontalPager(
+                pageCount = pageCount,
+                modifier = Modifier.height(with(LocalDensity.current) { maxHeight.toDp() })
+            ) { page ->
+                content(page)
+            }
+        } else {
+            // Tránh flicker frame đầu tiên
+            HorizontalPager(pageCount = pageCount) { page ->
+                content(page)
+            }
+        }
+    }
+}
+
